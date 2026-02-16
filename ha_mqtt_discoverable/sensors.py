@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Annotated, Any, Literal
+from enum import StrEnum
 
 from pydantic import Field, model_validator
 
@@ -30,6 +31,30 @@ from ha_mqtt_discoverable import (
 
 logger = logging.getLogger(__name__)
 
+# ==========================================================================================================
+# Entity Info Classes
+# ==========================================================================================================
+
+TF = {
+    "True": True,
+    "False": False,
+    "Yes": True,
+    "No": False,
+    "On": True,
+    "Off": False,
+    "Open": True,
+    "Closed": False,
+    "Locked": True,
+    "Unlocked": False,
+    1: True,
+    0: False,
+    True: True,
+    False: False,
+}
+
+class ONOFF_STATE(StrEnum):
+    ON = "on"
+    OFF = "off"
 
 class BinarySensorInfo(EntityInfo):
     """Binary sensor specific information"""
@@ -149,6 +174,14 @@ class LightInfo(EntityInfo):
     """List of supported effects. Required if effect is set"""
     retain: bool = True
     """If the published message should have the retain flag on or not"""
+
+class COVER_STATE(StrEnum):
+    """Possible states of a cover"""
+    OPEN = "open"
+    CLOSED = "closed"
+    OPENING = "opening"
+    CLOSING = "closing"
+    STOPPED = "stopped"
 
 
 class CoverInfo(EntityInfo):
@@ -348,6 +381,13 @@ class SelectInfo(EntityInfo):
     options: list = Field(default_factory=list)
     """List of options that can be selected. An empty list or a list with a single item is allowed."""
 
+class LOCK_STATE(StrEnum):
+    """Possible states of a lock"""
+    LOCKED = "LOCKED"
+    UNLOCKED = "UNLOCKED"
+    LOCKING = "LOCKING"
+    UNLOCKING = "UNLOCKING"
+    JAMMED = "JAMMED"
 
 class LockInfo(EntityInfo):
     """
@@ -377,6 +417,9 @@ class LockInfo(EntityInfo):
     state_jammed: str = "JAMMED"
     """The payload sent to state_topic by the lock when it’s jammed."""
 
+# ==========================================================================================================
+# Sensor Classes
+# ==========================================================================================================
 
 class BinarySensor(Discoverable[BinarySensorInfo]):
     def off(self):
@@ -391,16 +434,23 @@ class BinarySensor(Discoverable[BinarySensorInfo]):
         """
         self.update_state(state=True)
 
-    def update_state(self, state: bool) -> None:
+    def update_state(self, state: bool | str) -> None:
         """
         Update MQTT sensor state
 
         Args:
             state(bool): What state to set the sensor to
         """
+        if isinstance(state, str):
+            state = TF.get(state.casefold(), bool(state))
+
+
         state_message = self._entity.payload_on if state else self._entity.payload_off
         logger.info(f"Setting {self._entity.name} to {state_message} using {self.state_topic}")
         self._update_state(state=state_message)
+
+    def set(self, state: bool | str) -> None:
+
 
 
 class Sensor(Discoverable[SensorInfo]):
